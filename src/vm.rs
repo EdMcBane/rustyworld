@@ -14,7 +14,7 @@ use crate::input_defs::Input;
 use std::borrow::BorrowMut;
 use crate::vm::Segment::{Video1, Video2};
 
-pub const SPEED_UP: usize = 3;
+pub const SPEED_UP: usize = 1;
 
 pub struct Vm<V, R, I> {
     state: VmState,
