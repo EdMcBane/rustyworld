@@ -1,12 +1,12 @@
 use minifb::{ScaleMode, Window, WindowOptions};
-use anotherworld::resources::*;
-use anotherworld::video::{DefaultVideo, WIDTH, HEIGHT, MiniVideoAdapter};
+use rustyworld::resources::*;
+use rustyworld::video::{DefaultVideo, WIDTH, HEIGHT, MiniVideoAdapter};
 use std::rc::Rc;
-use anotherworld::vm::Vm;
-use anotherworld::audio::RodioAudio;
-use anotherworld::music::RodioMusic;
+use rustyworld::vm::Vm;
+use rustyworld::audio::RodioAudio;
+use rustyworld::music::RodioMusic;
 use std::cell::RefCell;
-use anotherworld::input::MiniInputDevice;
+use rustyworld::input::MiniInputDevice;
 
 const SCALE: usize = 3;
 
