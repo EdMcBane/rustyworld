@@ -13,7 +13,7 @@ pub trait Music {
     fn start(&mut self, res_id: u16, delay: Option<u16>, pos: u8);
     fn delay(&mut self, delay: u16);
     fn stop(&mut self);
-    fn channel(&mut self) -> &mut Receiver<i16>;
+    fn latest_mark(&mut self) -> Option<i16>;
 }
 
 #[derive(Debug)]
@@ -309,8 +309,8 @@ impl<R: ResourceManager> Music for RodioMusic<R> {
         }
     }
 
-    fn channel(&mut self) -> &mut Receiver<i16> {
-        &mut self.receiver
+    fn latest_mark(&mut self) -> Option<i16> {
+        self.receiver.try_iter().last()
     }
 }
 

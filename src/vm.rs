@@ -418,7 +418,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
 
 
     fn execute(state: &mut VmState, chan: &mut Chan, _chan_id: usize, part: &Part, peripherals: &mut Peripherals<V, R, I>, chan_reqs: &mut Vec<ChanReq>) {
-        if let Some(val) = peripherals.music.channel().try_iter().last() {
+        if let Some(val) = peripherals.music.latest_mark() {
             state.vars[VM_VAR_MUS_MARK] = val;
         }
         loop {
