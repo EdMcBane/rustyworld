@@ -31,7 +31,15 @@ Right now it is pretty barebones:
 # Next steps
 * curious to try WASM...
 
+# Credits
+* For making this: [Eric Chahi](http://anotherworld.fr/)
+* For making this porting possible [Gregory Montoir](https://github.com/cyxx/rawgl/blob/master/docs/Amiga_DOS.md)
+* For making this porting bearable :) [Fabien Sanglard](https://github.com/fabiensanglard/Another-World-Bytecode-Interpreter)
+* For making this so easy [All the amazing people working on Rust] https://www.rust-lang.org/
+
+
 # See also
 Other Another World engine implementations in rust:
 * https://github.com/malandrin/another-world-suite
 * https://github.com/Gnurou/awer
+
