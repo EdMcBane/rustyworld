@@ -33,9 +33,9 @@ Right now it is pretty barebones:
 
 # Credits
 * For making this: [Eric Chahi](http://anotherworld.fr/)
-* For making this porting possible [Gregory Montoir](https://github.com/cyxx/rawgl/blob/master/docs/Amiga_DOS.md)
-* For making this porting bearable :) [Fabien Sanglard](https://github.com/fabiensanglard/Another-World-Bytecode-Interpreter)
-* For making this so easy [All the amazing people working on Rust] https://www.rust-lang.org/
+* For making this porting possible: [Gregory Montoir](https://github.com/cyxx/rawgl/blob/master/docs/Amiga_DOS.md)
+* For making this porting bearable :-p : [Fabien Sanglard](https://github.com/fabiensanglard/Another-World-Bytecode-Interpreter)
+* For making this so easy: [All the amazing people working on Rust](https://www.rust-lang.org/)
 
 
 # See also
