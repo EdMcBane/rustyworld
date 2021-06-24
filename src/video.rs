@@ -37,7 +37,7 @@ struct Rect {
 }
 
 pub struct DefaultVideo<A: VideoAdapter> {
-    pages: [[u8; TOT_PIXELS as usize]; 4],
+    pages: [Vec<u8>; 4],
     target_buffer: Option<usize>,
     // 0 = background from resource
     front_buffer: usize,
@@ -50,7 +50,10 @@ impl<A: VideoAdapter> DefaultVideo<A> {
     pub fn new(adapter: A) -> DefaultVideo<A> {
         DefaultVideo {
             pages: [
-                [0u8; TOT_PIXELS]; 4],
+                vec![0; TOT_PIXELS],
+                vec![0; TOT_PIXELS],
+                vec![0; TOT_PIXELS],
+                vec![0; TOT_PIXELS]],
             target_buffer: None,
             front_buffer: 2,
             back_buffer: 1,
