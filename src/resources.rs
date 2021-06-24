@@ -176,7 +176,7 @@ impl ResourceManager for FileResourceManager {
     }
 
     fn resource(&self, id: u8) -> Option<Rc<Vec<u8>>> {
-        self.buffers.borrow_mut().get(&id).cloned()
+        self.buffers.borrow().get(&id).cloned()
     }
 }
 
