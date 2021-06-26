@@ -14,9 +14,8 @@ use crate::input::Input;
 use std::borrow::BorrowMut;
 use crate::vm::Segment::{Video1, Video2};
 
-pub const SPEED_UP: usize = 1;
-
 pub struct Vm<V, R, I> {
+    speed_up: usize,
     state: VmState,
     peripherals: Peripherals<V, R, I>,
 
@@ -316,8 +315,9 @@ impl Addressing {
 }
 
 impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
-    pub fn new(video: V, resman: Rc<R>, input_device: I, audio: Box<dyn Audio>, music: Box<dyn Music>) -> Vm<V, R, I> {
+    pub fn new(speed_up: usize, video: V, resman: Rc<R>, input_device: I, audio: Box<dyn Audio>, music: Box<dyn Music>) -> Vm<V, R, I> {
         let mut vm = Vm {
+            speed_up,
             state: VmState {
                 vars: [0i16; 256],
                 last_ts: Instant::now(),
@@ -396,7 +396,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                 if chan.paused || chan.pc_offset == PcOffset::ThreadInactive {
                     continue;
                 }
-                Vm::execute(&mut self.state, chan, chan_id, &self.active_part, self.peripherals.borrow_mut(), &mut chan_reqs);
+                Vm::execute(&mut self.state, self.speed_up, chan, chan_id, &self.active_part, self.peripherals.borrow_mut(), &mut chan_reqs);
             }
             for req in chan_reqs {
                 match req {
@@ -417,7 +417,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
     }
 
 
-    fn execute(state: &mut VmState, chan: &mut Chan, _chan_id: usize, part: &Part, peripherals: &mut Peripherals<V, R, I>, chan_reqs: &mut Vec<ChanReq>) {
+    fn execute(state: &mut VmState, speed_up: usize, chan: &mut Chan, _chan_id: usize, part: &Part, peripherals: &mut Peripherals<V, R, I>, chan_reqs: &mut Vec<ChanReq>) {
         if let Some(val) = peripherals.music.latest_mark() {
             state.vars[VM_VAR_MUS_MARK] = val;
         }
@@ -492,7 +492,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                 }
                 Instr::UpdateDisplay { src } => {
                     // TODO: inp_handleSpecialKeys
-                    let expected_delay = state.vars[VM_VAR_PAUSE_SLICES] as u32 * Duration::from_millis(20).div(SPEED_UP as u32);
+                    let expected_delay = state.vars[VM_VAR_PAUSE_SLICES] as u32 * Duration::from_millis(20).div(speed_up as u32);
                     loop {
                         let elapsed = state.last_ts.elapsed();
                         if elapsed.ge(&expected_delay) {

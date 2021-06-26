@@ -10,7 +10,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::mpsc;
 use crate::music::{Song, Beat, MusicAdapter, BeatIter};
-use crate::vm::SPEED_UP;
 
 pub struct RodioAudio<R> {
     pub os: OutputStream,
@@ -86,6 +85,7 @@ fn convert(data: &[u8]) -> Vec<i16> {
 
 
 struct SfxChan {
+    speed_up: usize,
     channel: usize,
     beat_interval_ms: Arc<AtomicUsize>,
     remaining: usize,
@@ -105,10 +105,11 @@ struct PlaybackState {
 const DEFAULT_SAMPLE_RATE: u32 = 8000;
 
 impl SfxChan {
-    fn new(channel: usize, beat_interval_ms: Arc<AtomicUsize>, sender: mpsc::Sender<i16>, module: Arc<Song>) -> Self {
+    fn new(channel: usize, speed_up: usize, beat_interval_ms: Arc<AtomicUsize>, sender: mpsc::Sender<i16>, module: Arc<Song>) -> Self {
         let samples_per_beat = DEFAULT_SAMPLE_RATE * beat_interval_ms.load(Ordering::SeqCst) as u32 / 1000;
 
         SfxChan {
+            speed_up,
             channel,
             beat_interval_ms,
             remaining: samples_per_beat as usize,
@@ -126,7 +127,7 @@ impl SfxChan {
             self.playback_state.take();
         }
         let samples_per_beat = self.sample_rate() * self.beat_interval_ms.load(Ordering::SeqCst) as u32 / 1000;
-        self.remaining = samples_per_beat as usize / SPEED_UP;
+        self.remaining = samples_per_beat as usize / self.speed_up;
     }
 
     fn process_note(&mut self, beat: Beat) {
@@ -203,18 +204,18 @@ impl Source for SfxChan {
     }
 }
 
-pub struct RodioMusicAdapter<R> {
-    pub os: OutputStream,
-    pub stream_handle: OutputStreamHandle,
-    pub channels: [Sink; 4],
-    pub beat_interval_ms: Arc<AtomicUsize>,
-    pub resman: Rc<R>,
-    pub sender: mpsc::Sender<i16>,
-    pub receiver: mpsc::Receiver<i16>,
+pub struct RodioMusicAdapter {
+    speed_up: usize,
+    _os: OutputStream,
+    stream_handle: OutputStreamHandle,
+    channels: [Sink; 4],
+    beat_interval_ms: Arc<AtomicUsize>,
+    sender: mpsc::Sender<i16>,
+    receiver: mpsc::Receiver<i16>,
 }
 
-impl<R: ResourceManager> RodioMusicAdapter<R> {
-    pub fn new(resman: Rc<R>) -> RodioMusicAdapter<R> {
+impl RodioMusicAdapter {
+    pub fn new(speed_up: usize) -> RodioMusicAdapter {
         let (os, stream_handle) = OutputStream::try_default().unwrap();
         let channels = [
             Sink::try_new(&stream_handle).unwrap(),
@@ -224,25 +225,25 @@ impl<R: ResourceManager> RodioMusicAdapter<R> {
         ];
         let (tx, rx) = mpsc::channel::<i16>();
         RodioMusicAdapter {
-            os,
+            speed_up,
+            _os: os,
             stream_handle,
             channels,
             beat_interval_ms: Arc::new(AtomicUsize::new(0)),
-            resman,
             sender: tx,
             receiver: rx,
         }
     }
 }
 
-impl<R: ResourceManager> MusicAdapter for RodioMusicAdapter<R> {
+impl MusicAdapter for RodioMusicAdapter {
     fn start(&mut self, module: Song) {
         self.beat_interval_ms.store(module.beat_interval.as_millis() as usize, Ordering::SeqCst);
         let module = Arc::new(module);
         for c in 0..4 {
             let channel = &mut self.channels[c as usize];
             *channel = Sink::try_new(&self.stream_handle).unwrap();
-            let chan_src = SfxChan::new(c, self.beat_interval_ms.clone(), self.sender.clone(), module.clone());
+            let chan_src = SfxChan::new(c, self.speed_up,self.beat_interval_ms.clone(), self.sender.clone(), module.clone());
             channel.append(chan_src);
         }
     }
@@ -275,7 +276,7 @@ mod tests {
     #[test]
     fn returns_zero_until_note() {
         let (tx, _rx) = channel();
-        let mut sut = SfxChan::new(0, Arc::new(AtomicUsize::new(10)), tx, Arc::new(Song {
+        let mut sut = SfxChan::new(0, 1, Arc::new(AtomicUsize::new(10)), tx, Arc::new(Song {
             beat_interval: Duration::from_millis(10),
             start_offset: 0,
             instruments: vec![Instrument {
@@ -317,7 +318,7 @@ mod tests {
     #[test]
     fn loop_works() {
         let (tx, _rx) = channel();
-        let mut sut = SfxChan::new(0, Arc::new(AtomicUsize::new(1000)), tx, Arc::new(Song {
+        let mut sut = SfxChan::new(0, 1, Arc::new(AtomicUsize::new(1000)), tx, Arc::new(Song {
             beat_interval: Duration::from_millis(1000),
             start_offset: 0,
             instruments: vec![Instrument {

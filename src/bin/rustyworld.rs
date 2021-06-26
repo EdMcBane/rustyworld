@@ -9,6 +9,7 @@ use std::cell::RefCell;
 use rustyworld::minifb::{MiniInputDevice, MiniVideoAdapter};
 
 const SCALE: usize = 3;
+const SPEED_UP: usize = 1;
 
 fn main() {
     let window = Window::new(
@@ -27,11 +28,11 @@ fn main() {
     let input_device = MiniInputDevice::sharing_window(window_ptr.clone());
     let resman = Rc::new(FileResourceManager::new().unwrap());
     let audio = RodioAudio::new(resman.clone());
-    let music_adapter = RodioMusicAdapter::new(resman.clone());
+    let music_adapter = RodioMusicAdapter::new(SPEED_UP);
     let music = DefaultMusic::new(resman.clone(), music_adapter);
     let video_adapter = MiniVideoAdapter::sharing_window(window_ptr);
     let video = DefaultVideo::new(video_adapter);
-    let mut vm = Vm::new(video, resman.clone(), input_device, Box::new(audio), Box::new(music));
+    let mut vm = Vm::new(SPEED_UP, video, resman.clone(), input_device, Box::new(audio), Box::new(music));
     vm.run();
 }
 
