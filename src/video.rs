@@ -1,14 +1,11 @@
 use crate::video::PageSelector::{Back, Front, Page};
-use minifb::{Window};
 use byteorder::{BigEndian, ReadBytesExt};
 use std::convert::TryInto;
 use itertools::izip;
-use std::rc::Rc;
-use std::cell::RefCell;
 
 pub const WIDTH: i16 = 320;
 pub const HEIGHT: i16 = 200;
-const TOT_PIXELS: usize = WIDTH as usize * HEIGHT as usize;
+pub const TOT_PIXELS: usize = WIDTH as usize * HEIGHT as usize;
 
 pub const DEFAULT_POLY_COLOR: u8 = 0xFF;
 
@@ -397,41 +394,3 @@ impl<A: VideoAdapter> Video for DefaultVideo<A> {
     }
 }
 
-
-pub struct MiniVideoAdapter {
-    window: Rc<RefCell<Window>>,
-    palette: Vec<u32>,
-    buffer: Vec<u32>,
-}
-impl MiniVideoAdapter {
-    pub fn new(window: Window) -> Self {
-        Self::sharing_window(Rc::new(RefCell::new(window)))
-    }
-
-    pub fn sharing_window(window: Rc<RefCell<Window>>) -> Self {
-        Self {
-            window,
-            palette: vec![0u32; 16],
-            buffer: vec![0u32; TOT_PIXELS],
-        }
-    }
-
-    fn palette_map(src: &[u8], dest :&mut [u32], palette: &[u32]) {
-        src.iter().zip(dest.iter_mut()).for_each(|(s, d)| *d = palette[*s as usize]);
-    }
-}
-impl VideoAdapter for MiniVideoAdapter {
-
-    fn update_display(&mut self, image: &[u8]) {
-        MiniVideoAdapter::palette_map(image, &mut self.buffer, &self.palette);
-        (*self.window)
-            .borrow_mut()
-            .update_with_buffer(&self.buffer, WIDTH as usize, HEIGHT as usize)
-            .unwrap();
-    }
-
-
-    fn set_palette(&mut self, palette: &[u32]) {
-        self.palette = palette.to_vec();
-    }
-}

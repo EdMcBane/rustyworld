@@ -10,7 +10,7 @@ use lazy_static::lazy_static;
 use std::collections::{HashMap, HashSet};
 use crate::music::Music;
 use crate::input::InputDevice;
-use crate::input_defs::Input;
+use crate::input::Input;
 use std::borrow::BorrowMut;
 use crate::vm::Segment::{Video1, Video2};
 

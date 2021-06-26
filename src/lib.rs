@@ -8,4 +8,7 @@ pub mod audio;
 mod strings;
 pub mod music;
 pub mod input;
-pub mod input_defs;
+#[cfg(feature = "minifb")]
+pub mod minifb;
+#[cfg(feature = "rodio")]
+pub mod rodio;
