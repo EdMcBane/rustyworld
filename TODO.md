@@ -1,3 +1,3 @@
 * proper command line
-* separate minifb peripherals behind feature flag
+* clean up speedup, avoid it breaking tests
 * read string res & parts from resource files
