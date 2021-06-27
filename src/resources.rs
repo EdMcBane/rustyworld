@@ -26,23 +26,23 @@ pub struct Resource
 pub enum ResType {
     Sound = 0,
     Music = 1,
-    PolyAnim = 2,
     // full screen video buffer, size=0x7D00
-    Palette = 3,
+    PolyAnim = 2,
     // palette (1024=vga + 1024=ega), size=2048
+    Palette = 3,
     Bytecode = 4,
     PolyCinematic = 5,
-    Unknown = 6,
+    Unknown = 6, // TODO: what is this?
 }
 
 pub trait ResourceManager {
-    fn load_memory_entry(&self, resource_id: u8) -> &Resource;
-    fn resource(&self, id: u8) -> Option<Rc<Vec<u8>>>;
+    fn preload_resource(&self, id: u8) -> &Resource;
+    fn get_resource(&self, id: u8) -> Option<Rc<Vec<u8>>>;
 }
 
 pub struct FileResourceManager {
     pub resources: Vec<Resource>,
-    pub buffers: RefCell<HashMap<u8, Rc<Vec<u8>>>>,
+    buffers: RefCell<HashMap<u8, Rc<Vec<u8>>>>,
 }
 
 #[derive(Debug)]
@@ -179,14 +179,14 @@ impl FileResourceManager {
 }
 
 impl ResourceManager for FileResourceManager {
-    fn load_memory_entry(&self, resource_id: u8) -> &Resource {
+    fn preload_resource(&self, resource_id: u8) -> &Resource {
         let res = &self.resources[resource_id as usize];
         let content = self.read_resource(resource_id).unwrap_or_else(|e| panic!("failed to load resource {}: {}", resource_id, e));
         let _ = self.buffers.borrow_mut().insert(resource_id, Rc::new(content));
         res
     }
 
-    fn resource(&self, id: u8) -> Option<Rc<Vec<u8>>> {
+    fn get_resource(&self, id: u8) -> Option<Rc<Vec<u8>>> {
         self.buffers.borrow().get(&id).cloned()
     }
 }
@@ -219,7 +219,7 @@ fn parse_resource(file: &mut File) -> Result<Option<Resource>, Box<dyn Error>> {
             bank_id,
             bank_offset,
             packed_size,
-            size
+            size,
         }))
     } else {
         Ok(None)

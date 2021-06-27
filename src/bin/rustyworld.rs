@@ -6,7 +6,7 @@ use rustyworld::rodio::{RodioAudio, RodioMusicAdapter};
 use rustyworld::minifb::{MiniVideoAdapter, MiniInputDevice};
 
 const SCALE: usize = 3;
-const SPEED_UP: usize = 1;
+const SPEED_UP: usize = 3;
 
 fn main() {
     let window = Window::new(

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use num::Integer;
 
 pub trait Music {
-    fn start(&mut self, res_id: u16, delay: Option<u16>, pos: u8);
+    fn start(&mut self, res_id: u8, delay: Option<u16>, pos: u8);
     fn delay(&mut self, delay: u16);
     fn stop(&mut self);
     fn latest_mark(&mut self) -> Option<i16>;
@@ -26,7 +26,7 @@ pub struct DefaultMusic<R,A> {
 }
 
 impl<R: ResourceManager, A: MusicAdapter> Music for DefaultMusic<R, A> {
-    fn start(&mut self, res_id: u16, delay: Option<u16>, pos: u8) {
+    fn start(&mut self, res_id: u8, delay: Option<u16>, pos: u8) {
         if let Some(module) = self.load_module(res_id, delay, pos) {
             self.adapter.start(module);
         }
@@ -53,9 +53,9 @@ impl<R: ResourceManager, A:MusicAdapter> DefaultMusic<R, A> {
         }
     }
 
-    fn load_module(&mut self, resource_id: u16, requested_delay: Option<u16>, verse_index: u8) -> Option<Song> {
+    fn load_module(&mut self, resource_id: u8, requested_delay: Option<u16>, verse_index: u8) -> Option<Song> {
         let start_offset = verse_index as usize * 256;
-        self.resman.resource(resource_id as u8).map(|data| {
+        self.resman.get_resource(resource_id as u8).map(|data| {
             // 0x00 - 0x02 : u16 delay
             // 0x02 - 0x3E : [(u16, u16); 15] instrument res & vol
             // 0x3E - 0x3F : verse_count
@@ -79,13 +79,15 @@ impl<R: ResourceManager, A:MusicAdapter> DefaultMusic<R, A> {
             let mut instrument: Instrument = Default::default();
             let res_id = data.read_u16::<BigEndian>().unwrap();
             let vol = data.read_u16::<BigEndian>().unwrap();
-            if let Some(res) = self.resman.resource(res_id as u8) {
-                instrument.volume = vol;
-                instrument.len = ((&res[..]).read_u16::<BigEndian>().unwrap() * 2) as usize;
-                instrument.loop_len = ((&res[2..]).read_u16::<BigEndian>().unwrap() * 2) as usize;
-                instrument.data = res[8..].to_vec();
-                (&mut instrument.data[0..4]).fill(0); // TODO: why?
-                eprintln!("instrument {} {} {} {} {} {}", idx, res_id, instrument.volume, instrument.len, instrument.loop_len, instrument.data.len());
+            if let Some(res) = self.resman.get_resource(res_id as u8) {
+                if res.len() > 0 { // Avoid problems when preloading resources for explorer and unexpected zero-len resources are returned
+                    instrument.volume = vol;
+                    instrument.len = ((&res[..]).read_u16::<BigEndian>().unwrap() * 2) as usize;
+                    instrument.loop_len = ((&res[2..]).read_u16::<BigEndian>().unwrap() * 2) as usize;
+                    instrument.data = res[8..].to_vec();
+                    (&mut instrument.data[0..4]).fill(0); // TODO: why?
+                    eprintln!("instrument {} {} {} {} {} {}", idx, res_id, instrument.volume, instrument.len, instrument.loop_len, instrument.data.len());
+                }
             }
             instruments.push(instrument);
         }

@@ -2,8 +2,6 @@ use rodio::{Sink, OutputStream, Source, OutputStreamHandle, Sample};
 use byteorder::BigEndian;
 use byteorder::ReadBytesExt;
 use rodio::buffer::SamplesBuffer;
-use crate::resources::{ResourceManager};
-use std::rc::Rc;
 use crate::audio::Audio;
 use std::time::Duration;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -11,12 +9,11 @@ use std::sync::Arc;
 use std::sync::mpsc;
 use crate::music::{Song, Beat, MusicAdapter, BeatIter};
 
-pub struct RodioAudio<R> {
+pub struct RodioAudio {
     pub os: OutputStream,
     // Necessary to keep alive
     pub stream_handle: OutputStreamHandle,
     pub channels: [Sink; 4],
-    pub resman: Rc<R>,
 }
 
 static FREQ_TABLE: [u16; 40] = [
@@ -27,8 +24,8 @@ static FREQ_TABLE: [u16; 40] = [
     0x5240, 0x5764, 0x5C9A, 0x61C8, 0x6793, 0x6E19, 0x7485, 0x7BBD
 ];
 
-impl<R: ResourceManager> RodioAudio<R> {
-    pub fn new(resman: Rc<R>) -> RodioAudio<R> {
+impl RodioAudio {
+    pub fn new() -> RodioAudio {
         let (os, stream_handle) = OutputStream::try_default().unwrap();
         let channels = [
             Sink::try_new(&stream_handle).unwrap(),
@@ -40,12 +37,11 @@ impl<R: ResourceManager> RodioAudio<R> {
             os,
             stream_handle,
             channels,
-            resman,
         }
     }
 }
 
-impl<R: ResourceManager> Audio for RodioAudio<R> {
+impl Audio for RodioAudio {
     fn play_sound(&mut self, data: &[u8], freq: u8, mut vol: u8, channel_id: u8) {
         eprintln!("Playing chan {} sound, freq {} vol {}", channel_id, freq, vol);
         assert!(freq < 0x40);
@@ -178,7 +174,7 @@ impl Iterator for SfxChan {
         } else {
             Some(0)
         };
-        self.remaining -= 1;
+        self.remaining -= 1; // TODO: if module.beat_interval is ever zero, next() on SfxChan panics
         if self.remaining == 0 {
             self.next_timeslot()
         }

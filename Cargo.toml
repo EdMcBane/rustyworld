@@ -16,3 +16,4 @@ lazy_static = "1.4.0"
 rodio = { version = "0.14.0", default-features = false, optional = true }
 num = "0.4.0"
 num_enum = "0.5.1"
+rustyline = "8.2.0"

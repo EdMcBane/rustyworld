@@ -268,7 +268,7 @@ enum Instr {
         id: u16,
     },
     PlayMusic {
-        id: u16,
+        id: u8,
         delay: u16,
         pos: u8,
     },
@@ -355,18 +355,18 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
         assert_ne!(part_id, self.active_part.id);
 
         for res_id in &[part.palette_id, part.code_id, part.video1_id] {
-            self.peripherals.resman.load_memory_entry(*res_id as u8);
+            self.peripherals.resman.preload_resource(*res_id as u8);
         }
         for res_id in &part.video2_id {
-            self.peripherals.resman.load_memory_entry(*res_id as u8);
-            self.peripherals.video.load_bg(&self.peripherals.resman.resource(*res_id as u8).unwrap());
+            self.peripherals.resman.preload_resource(*res_id as u8);
+            self.peripherals.video.load_bg(&self.peripherals.resman.get_resource(*res_id as u8).unwrap());
         }
         self.active_part = Part {
             id: part_id,
-            palette: self.peripherals.resman.resource(part.palette_id as u8).unwrap(),
-            code: self.peripherals.resman.resource(part.code_id as u8).unwrap(),
-            video1: self.peripherals.resman.resource(part.video1_id as u8).unwrap(),
-            video2: part.video2_id.map(|id| self.peripherals.resman.resource(id as u8).unwrap()),
+            palette: self.peripherals.resman.get_resource(part.palette_id as u8).unwrap(),
+            code: self.peripherals.resman.get_resource(part.code_id as u8).unwrap(),
+            video1: self.peripherals.resman.get_resource(part.video1_id as u8).unwrap(),
+            video2: part.video2_id.map(|id| self.peripherals.resman.get_resource(id as u8).unwrap()),
         };
 
         self.chans.iter_mut().for_each(Chan::reset);
@@ -528,7 +528,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                     state.vars[reg] = ((state.vars[reg] as u16) >> rhs.resolve(&state.vars) as u16) as i16;
                 }
                 Instr::PlaySound { id, channel, freq, vol } => {
-                    if let Some(content) = peripherals.resman.resource(id as u8) {
+                    if let Some(content) = peripherals.resman.get_resource(id as u8) {
                         peripherals.audio.play_sound(&content, freq, vol, channel);
                     }
                 }
@@ -539,8 +539,8 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                     } else if id >= GAME_PART_BASE_IDX {
                         chan_reqs.push(ChanReq::Part(id))
                     } else { // TODO: check resource_id range
-                        if ResType::PolyAnim == peripherals.resman.load_memory_entry(id as u8).etype {
-                            peripherals.video.load_bg(&(*peripherals.resman).resource(id as u8).unwrap());
+                        if ResType::PolyAnim == peripherals.resman.preload_resource(id as u8).etype {
+                            peripherals.video.load_bg(&(*peripherals.resman).get_resource(id as u8).unwrap());
                         }
                     }
                 }
@@ -756,7 +756,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
             }
             0x1A => {
                 Instr::PlayMusic {
-                    id: chan.next_u16(code),
+                    id: chan.next_u16(code) as u8,
                     delay: chan.next_u16(code),
                     pos: chan.next_u8(code),
                 }
