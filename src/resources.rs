@@ -3,22 +3,36 @@ use std::io::prelude::*;
 use std::error::Error;
 use byteorder::{ByteOrder, BigEndian, ReadBytesExt};
 use std::io::SeekFrom;
-use std::io::ErrorKind;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::cell::RefCell;
+use num_enum::TryFromPrimitive;
+use std::convert::TryInto;
 
-#[derive(Default)]
 pub struct Resource
 {
     pub state: u8,
-    pub etype: u8,
+    pub etype: ResType,
     pub buf_ptr: u16,
     pub rank_num: u8,
     pub bank_id: u8,
     pub bank_offset: u32,
     pub packed_size: u32,
     pub size: u32,
+}
+
+#[repr(u8)]
+#[derive(TryFromPrimitive, PartialEq, Debug)]
+pub enum ResType {
+    Sound = 0,
+    Music = 1,
+    PolyAnim = 2,
+    // full screen video buffer, size=0x7D00
+    Palette = 3,
+    // palette (1024=vga + 1024=ega), size=2048
+    Bytecode = 4,
+    PolyCinematic = 5,
+    Unknown = 6,
 }
 
 pub trait ResourceManager {
@@ -162,15 +176,12 @@ impl FileResourceManager {
         }
         Ok(out)
     }
-
-
-
 }
 
 impl ResourceManager for FileResourceManager {
     fn load_memory_entry(&self, resource_id: u8) -> &Resource {
         let res = &self.resources[resource_id as usize];
-        let content =self.read_resource(resource_id).unwrap_or_else(|e| panic!("failed to load resource {}: {}", resource_id, e));
+        let content = self.read_resource(resource_id).unwrap_or_else(|e| panic!("failed to load resource {}: {}", resource_id, e));
         let _ = self.buffers.borrow_mut().insert(resource_id, Rc::new(content));
         res
     }
@@ -190,23 +201,30 @@ fn index_resources() -> Result<Vec<Resource>, Box<dyn Error>> {
 }
 
 fn parse_resource(file: &mut File) -> Result<Option<Resource>, Box<dyn Error>> {
-    let mut res: Resource = Default::default();
-    res.state = match file.read_u8() {
-        Ok(u) => u,
-        Err(e) if e.kind() == ErrorKind::UnexpectedEof => { return Ok(None); }
-        e => e?
-    };
-    res.etype = file.read_u8()?;
-    res.buf_ptr = file.read_u16::<BigEndian>()?;
+    let state = file.read_u8()?;
+    let etype = file.read_u8()?;
+    let buf_ptr = file.read_u16::<BigEndian>()?;
     file.seek(SeekFrom::Current(2))?;
-    res.rank_num = file.read_u8()?;
-    res.bank_id = file.read_u8()?;
-    res.bank_offset = file.read_u32::<BigEndian>()?;
-    res.packed_size = file.read_u32::<BigEndian>()?;
-    res.size = file.read_u32::<BigEndian>()?;
-    Ok(Some(res))
+    let rank_num = file.read_u8()?;
+    let bank_id = file.read_u8()?;
+    let bank_offset = file.read_u32::<BigEndian>()?;
+    let packed_size = file.read_u32::<BigEndian>()?;
+    let size = file.read_u32::<BigEndian>()?;
+    if etype != 0xFF {
+        Ok(Some(Resource {
+            state,
+            etype: etype.try_into()?,
+            buf_ptr,
+            rank_num,
+            bank_id,
+            bank_offset,
+            packed_size,
+            size
+        }))
+    } else {
+        Ok(None)
+    }
 }
-
 
 
 #[cfg(test)]
@@ -255,7 +273,7 @@ mod tests {
         assert_eq!(0, stream.by_ref().nextbits(8).unwrap() as u32);
         assert_eq!(255, stream.by_ref().nextbits(8).unwrap() as u32);
     }
-    
+
     fn from_rev_u32s(u32s: Vec<u32>) -> BitStream<impl Iterator<Item=u32>> {
         let mut src = u32s.into_iter();
         BitStream {
@@ -264,7 +282,4 @@ mod tests {
             src: src.into_iter(),
         }
     }
-
-
-
 }

@@ -1,6 +1,6 @@
 use arr_macro::arr;
 use std::time::{Instant, Duration};
-use crate::resources::ResourceManager;
+use crate::resources::{ResourceManager, ResType};
 use crate::video::{Video, PageSelector, Point, DEFAULT_POLY_COLOR};
 use std::rc::Rc;
 use byteorder::{ReadBytesExt, BigEndian};
@@ -539,7 +539,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                     } else if id >= GAME_PART_BASE_IDX {
                         chan_reqs.push(ChanReq::Part(id))
                     } else { // TODO: check resource_id range
-                        if ETYPE_POLY_ANIM == peripherals.resman.load_memory_entry(id as u8).etype {
+                        if ResType::PolyAnim == peripherals.resman.load_memory_entry(id as u8).etype {
                             peripherals.video.load_bg(&(*peripherals.resman).resource(id as u8).unwrap());
                         }
                     }
@@ -820,7 +820,6 @@ pub struct PartConfig {
     pub video2_id: Option<u16>,
 }
 
-const ETYPE_POLY_ANIM: u8 = 2;
 lazy_static! {
     static ref GAME_PARTS: HashMap<u16, PartConfig> = {
         let mut m = HashMap::new();
