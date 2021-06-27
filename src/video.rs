@@ -174,8 +174,9 @@ impl<A: VideoAdapter> DefaultVideo<A> {
             let (step2, h) = Self::calc_step(f1, f2);
             assert_eq!(h1, h);
             match Self::handle_pair_proper(cpt1, cpt2, y, step1, step2, h, |x1, x2, y| { self.draw_line(x1, x2, y, color) }) {
-                Some(r) => {
-                    (cpt1, cpt2) = r;
+                Some((cpt1_new, cpt2_new)) => {
+                    cpt1 = cpt1_new; // TODO: review once destructuring_assignment is stabilized
+                    cpt2 = cpt2_new;
                     y += h as i16;
                 }
                 None => { break; }

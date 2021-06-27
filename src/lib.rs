@@ -1,14 +1,17 @@
-#![feature(array_chunks)]
-#![feature(slice_as_chunks)]
-#![feature(destructuring_assignment)]
-pub mod resources;
-pub mod vm;
-pub mod video;
-pub mod audio;
+mod resources;
+mod vm;
+mod video;
+mod audio;
 mod strings;
-pub mod music;
-pub mod input;
+mod music;
+mod input;
+
 #[cfg(feature = "minifb")]
 pub mod minifb;
 #[cfg(feature = "rodio")]
 pub mod rodio;
+
+pub use crate::vm::Vm;
+pub use crate::resources::FileResourceManager;
+pub use crate::video::{DefaultVideo, WIDTH, HEIGHT};
+pub use crate::music::DefaultMusic;

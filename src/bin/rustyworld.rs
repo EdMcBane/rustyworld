@@ -1,12 +1,9 @@
-use minifb::{ScaleMode, Window, WindowOptions};
-use rustyworld::resources::*;
-use rustyworld::video::{DefaultVideo, WIDTH, HEIGHT};
+use ::minifb::{ScaleMode, Window, WindowOptions};
+use rustyworld::*;
 use std::rc::Rc;
-use rustyworld::vm::Vm;
-use rustyworld::rodio::{RodioAudio, RodioMusicAdapter};
-use rustyworld::music::DefaultMusic;
 use std::cell::RefCell;
-use rustyworld::minifb::{MiniInputDevice, MiniVideoAdapter};
+use rustyworld::rodio::{RodioAudio, RodioMusicAdapter};
+use rustyworld::minifb::{MiniVideoAdapter, MiniInputDevice};
 
 const SCALE: usize = 3;
 const SPEED_UP: usize = 1;
