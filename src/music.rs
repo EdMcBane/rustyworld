@@ -158,11 +158,10 @@ pub struct Song {
 }
 
 impl Song {
-    pub fn iter_chan<'a>(module: Arc<Song>, channel: usize) -> BeatIter { // TODO: tinytypes
-        let start_offset = module.start_offset;
+    pub fn iter_chan<'a>(self: Arc<Song>, channel: usize) -> BeatIter { // TODO: tinytypes
         BeatIter {
-            module,
-            pos: start_offset,
+            module: self.clone(),
+            pos:  self.start_offset,
             channel,
         }
     }

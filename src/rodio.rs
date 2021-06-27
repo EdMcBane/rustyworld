@@ -114,7 +114,7 @@ impl SfxChan {
             beat_interval_ms,
             remaining: samples_per_beat as usize,
             module: module.clone(),
-            beats: Song::iter_chan(module, channel),
+            beats: module.iter_chan(channel),
             playback_state: None,
             sender,
         }
