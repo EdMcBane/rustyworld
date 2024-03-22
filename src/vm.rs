@@ -37,16 +37,14 @@ struct Peripherals<V, R, I> {
 }
 
 struct Chan {
-    pc_offset: PcOffset,
-    paused: bool,
+    status: ChanStatus,
     stack: Vec<u16>,
 }
 
 impl Default for Chan {
     fn default() -> Self {
         Chan {
-            pc_offset: PcOffset::ThreadInactive,
-            paused: false,
+            status: ChanStatus::Paused(0),
             stack: vec![],
         }
     }
@@ -56,54 +54,68 @@ const VM_SETVEC_INACTIVE: u16 = 0xFFFE;
 const GAME_PART_BASE_IDX: u16 = 0x3E80;
 const DEFAULT_ZOOM: u16 = 0x40;
 
+type PcOffset = u16;
+
 #[derive(PartialEq, Debug)]
-enum PcOffset {
-    ThreadInactive,
-    Offset(u16),
+enum ChanStatus {
+    Running(PcOffset),
+    Paused(PcOffset)
 }
 
-impl PcOffset {
-    fn as_raw_offset(&self) -> u16 {
-        match self {
-            PcOffset::Offset(offset) => *offset,
-            _ => { panic!("Not an offset"); }
-        }
-    }
-
-    fn inc(&mut self, step: u16) -> usize {
-        match self {
-            PcOffset::Offset(offset) => {
-                let prev = *offset as usize;
-                *self = PcOffset::Offset(*offset + step);
-                prev
-            }
-            PcOffset::ThreadInactive => { panic!("Not an offset"); }
-        }
-    }
-}
-
+#[derive(Debug)]
 enum ChanReq {
     Part(u16),
-    PcOffset(usize, PcOffset),
-    PauseState(usize, bool),
+    SingleChanReq(usize, SingleChanReq),
+}
+
+#[derive(Debug)]
+enum SingleChanReq {
+    Exec(PcOffset),
+    Stop,
+    Pause,
+    Resume,
 }
 
 impl Chan {
-    fn reset(&mut self) {
-        self.pc_offset = PcOffset::ThreadInactive;
-        self.paused = false;
+    fn stop(&mut self) {
+        self.status = ChanStatus::Paused(0);
     }
 
-    fn jump_to(&mut self, pc: PcOffset) {
-        self.pc_offset = pc;
+    fn exec_at(&mut self, pc: PcOffset) {
+        self.status = ChanStatus::Running(pc)
+    }
+
+    fn inc_pc(&mut self, step: u16) -> usize {
+        if let ChanStatus::Running(pc) = &mut self.status {
+            let result = *pc as usize;
+            *pc += step;
+            result
+        } else {
+            panic!("Chan not running")
+        }
     }
 
     fn next_u8(&mut self, code: &[u8]) -> u8 {
-        (&code[self.pc_offset.inc(1)..]).read_u8().unwrap()
+        (&code[self.inc_pc(1)..]).read_u8().unwrap()
     }
 
     fn next_u16(&mut self, code: &[u8]) -> u16 {
-        (&code[self.pc_offset.inc(2)..]).read_u16::<BigEndian>().unwrap()
+        (&code[self.inc_pc(2)..]).read_u16::<BigEndian>().unwrap()
+    }
+
+    fn pause(&mut self) {
+        self.status = ChanStatus::Paused(self.pc())
+    }
+
+    fn resume(&mut self) {
+        self.status = ChanStatus::Running(self.pc())
+    }
+
+    fn pc(&self) -> PcOffset {
+        match self.status {
+            ChanStatus::Running(pc) => pc,
+            ChanStatus::Paused(pc) => pc,
+        }
     }
 }
 
@@ -190,7 +202,7 @@ enum Instr {
         rhs: Addressing,
     },
     Call {
-        target: PcOffset,
+        target: ChanStatus,
     },
     Ret,
     Yield,
@@ -198,7 +210,7 @@ enum Instr {
         cond: JmpCond,
         lhs_reg: usize,
         rhs: Addressing,
-        target: PcOffset,
+        target: ChanStatus,
     },
     ChanExec {
         target_chan: usize,
@@ -206,7 +218,7 @@ enum Instr {
     },
     DecJnz {
         reg: usize,
-        target: PcOffset,
+        target: ChanStatus,
     },
     SetPalette {
         id: usize,
@@ -290,7 +302,7 @@ enum Instr {
 enum ChanAction {
     Pause,
     Resume,
-    Reset,
+    Stop,
 }
 
 #[derive(Debug)]
@@ -369,8 +381,8 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
             video2: part.video2_id.map(|id| self.peripherals.resman.resource(id as u8).unwrap()),
         };
 
-        self.chans.iter_mut().for_each(Chan::reset);
-        self.chans[0].jump_to(PcOffset::Offset(0));
+        self.chans.iter_mut().for_each(Chan::stop);
+        self.chans[0].exec_at(0);
     }
 
 
@@ -393,23 +405,23 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
             // Run channels
             let mut chan_reqs = vec![];
             for (chan_id, chan) in self.chans.iter_mut().enumerate() {
-                if chan.paused || chan.pc_offset == PcOffset::ThreadInactive {
-                    continue;
+                if let ChanStatus::Running(_) = chan.status {
+                    Vm::execute(&mut self.state, self.speed_up, chan, chan_id, &self.active_part, self.peripherals.borrow_mut(), &mut chan_reqs);
                 }
-                Vm::execute(&mut self.state, self.speed_up, chan, chan_id, &self.active_part, self.peripherals.borrow_mut(), &mut chan_reqs);
             }
             for req in chan_reqs {
                 match req {
                     ChanReq::Part(part_id) => {
                         self.setup_part(part_id);
-                        self.chans.iter_mut().for_each(Chan::reset);
-                        self.chans[0].jump_to(PcOffset::Offset(0));
-                    }
-                    ChanReq::PcOffset(chan_id, offset) => {
-                        self.chans[chan_id].pc_offset = offset;
-                    }
-                    ChanReq::PauseState(chan_id, state) => {
-                        self.chans[chan_id].paused = state
+                    },
+                    ChanReq::SingleChanReq(chan_id, subreq) => {
+                        let chan = &mut self.chans[chan_id];
+                        match subreq {
+                            SingleChanReq::Exec(offset) => chan.exec_at(offset),
+                            SingleChanReq::Stop => chan.stop(),
+                            SingleChanReq::Pause => chan.pause(),
+                            SingleChanReq::Resume => chan.resume(),
+                        }
                     }
                 }
             }
@@ -432,20 +444,20 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                     state.vars[reg] = state.vars[reg].overflowing_add(rhs.resolve(&state.vars)).0
                 }
                 Instr::Call { target } => {
-                    chan.stack.push(chan.pc_offset.as_raw_offset());
-                    chan.pc_offset = target;
+                    chan.stack.push(chan.pc());
+                    chan.status = target;
                 }
                 Instr::Ret => {
-                    chan.pc_offset = PcOffset::Offset(chan.stack.pop().expect("Stack underflow"));
+                    chan.status = ChanStatus::Running(chan.stack.pop().expect("Stack underflow"));
                 }
                 Instr::Yield => break,
                 Instr::ChanExec { target_chan, target } => {
-                    chan_reqs.push(ChanReq::PcOffset(target_chan, target));
+                    chan_reqs.push(ChanReq::SingleChanReq(target_chan, SingleChanReq::Exec(target)));
                 }
                 Instr::DecJnz { reg, target } => {
                     state.vars[reg] -= 1;
                     if state.vars[reg] != 0 {
-                        chan.pc_offset = target;
+                        chan.status = target;
                     }
                 }
                 Instr::Jmp { cond, lhs_reg, rhs, target } => {
@@ -461,7 +473,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                         JmpCond::Lesser => lhs < rhs,
                         JmpCond::LesserEqual => lhs <= rhs,
                     } {
-                        chan.pc_offset = target;
+                        chan.status = target;
                     }
                 }
                 Instr::SetPalette { id } => {
@@ -474,9 +486,9 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                 Instr::ChanReset { from_chan, to_chan, action } => {
                     for chan_id in from_chan..=to_chan {
                         match action {
-                            ChanAction::Reset => chan_reqs.push(ChanReq::PcOffset(chan_id, PcOffset::ThreadInactive)),
-                            ChanAction::Pause => chan_reqs.push(ChanReq::PauseState(chan_id, true)),
-                            ChanAction::Resume => chan_reqs.push(ChanReq::PauseState(chan_id, false)),
+                            ChanAction::Stop => chan_reqs.push(ChanReq::SingleChanReq(chan_id, SingleChanReq::Stop)),
+                            ChanAction::Pause => chan_reqs.push(ChanReq::SingleChanReq(chan_id, SingleChanReq::Pause)),
+                            ChanAction::Resume => chan_reqs.push(ChanReq::SingleChanReq(chan_id, SingleChanReq::Resume)),
                         }
                     }
                 }
@@ -506,7 +518,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                     peripherals.video.update_display(src)
                 }
                 Instr::Kill => {
-                    chan.pc_offset = PcOffset::ThreadInactive;
+                    chan.status = ChanStatus::Paused(0);
                     break;
                 }
                 Instr::DrawStr { id, x, y, color } => {
@@ -599,7 +611,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
             }
             0x4 => {
                 Instr::Call {
-                    target: PcOffset::Offset(chan.next_u16(code))
+                    target: ChanStatus::Running(chan.next_u16(code))
                 }
             }
             0x5 => {
@@ -613,24 +625,28 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                     cond: JmpCond::Unconditional,
                     lhs_reg: 0,
                     rhs: Addressing::Immediate(0),
-                    target: PcOffset::Offset(chan.next_u16(code)),
+                    target: ChanStatus::Running(chan.next_u16(code)),
                 }
             }
             0x8 => {
                 let chan_id = chan.next_u8(code) as usize;
-                let pc_offset = match chan.next_u16(code) {
-                    VM_SETVEC_INACTIVE => PcOffset::ThreadInactive,
-                    offset => PcOffset::Offset(offset),
-                };
-                Instr::ChanExec {
-                    target_chan: chan_id,
-                    target: pc_offset,
+                match chan.next_u16(code) {
+                    VM_SETVEC_INACTIVE => Instr::ChanReset {
+                        from_chan: chan_id,
+                        to_chan: chan_id,
+                        action: ChanAction::Stop,
+                    },
+                    offset => Instr::ChanExec {
+                        target_chan: chan_id,
+                        target: offset,
+                    },
                 }
+
             }
             0x9 => {
                 Instr::DecJnz {
                     reg: chan.next_u8(code) as usize,
-                    target: PcOffset::Offset(chan.next_u16(code)),
+                    target: ChanStatus::Running(chan.next_u16(code)),
                 }
             }
             0xA => {
@@ -652,7 +668,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                         0x40 => Addressing::Immediate(chan.next_u16(code) as i16),
                         _ => Addressing::Immediate(chan.next_u8(code) as i16),
                     },
-                    target: PcOffset::Offset(chan.next_u16(code)),
+                    target: ChanStatus::Running(chan.next_u16(code)),
                 }
             }
             0xB => {
@@ -667,7 +683,7 @@ impl<V: Video, R: ResourceManager, I: InputDevice> Vm<V, R, I> {
                 let action = match state {
                     0 => ChanAction::Resume,
                     1 => ChanAction::Pause,
-                    2 => ChanAction::Reset,
+                    2 => ChanAction::Stop,
                     _ => { panic!("invalid reset thread state") }
                 };
                 Instr::ChanReset {
